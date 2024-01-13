@@ -1,0 +1,69 @@
+#!/sbin/openrc-run
+
+set -e
+
+depend() {
+    before rclone
+}
+
+start_pre() {
+    mkdir -p \
+        "/chroot/${RC_SVCNAME}/dev" \
+        "/chroot/${RC_SVCNAME}/home" \
+        "/chroot/${RC_SVCNAME}/tmp"
+
+    mknod -m 0666 "/chroot/${RC_SVCNAME}/dev/null" c 1 3
+    mknod -m 0666 "/chroot/${RC_SVCNAME}/dev/urandom" c 1 9
+
+    for CMD in sh; do
+        BIN=$(which "$CMD")
+        DIR="/chroot/${RC_SVCNAME}${BIN%/*}"
+        mkdir -p "$DIR"
+        cp "$BIN" "$DIR"
+    done
+
+    for BIN in /usr/bin/mega-*; do
+        DIR="/chroot/${RC_SVCNAME}${BIN%/*}"
+        mkdir -p "$DIR"
+        cp "$BIN" "$DIR"
+    done
+
+    for LIB in $(ldd /usr/bin/mega-cmd-server | awk '/=>/ {print $3}'); do
+        DIR="/chroot/${RC_SVCNAME}${LIB%/*}"
+        mkdir -p "$DIR"
+        cp "$LIB" "$DIR"
+    done
+}
+
+start() {
+    ebegin "Starting ${RC_SVCNAME}"
+
+    . /etc/mega/.env
+
+    export HOME="/home"
+
+    chroot "/chroot/${RC_SVCNAME}" /usr/bin/mega-login "$EMAIL" "$PASSWORD"
+
+    ENDPOINT=$( \
+        chroot "/chroot/${RC_SVCNAME}" /usr/bin/mega-webdav --port="100${RC_SVCNAME##*-}" "$DIRECTORY" \
+        | awk '{print $NF}' \
+    )
+
+    sed -i "s|url = #${RC_SVCNAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
+
+    eend $?
+}
+
+stop() {
+    ebegin "Stopping ${RC_SVCNAME}"
+
+    export HOME="/home"
+
+    chroot "/chroot/${RC_SVCNAME}" /usr/bin/mega-webdav -d --all
+
+    eend $?
+}
+
+status() {
+    eend 0 # TODO
+}
