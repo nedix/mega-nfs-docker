@@ -1,6 +1,6 @@
 #!/sbin/openrc-run
 
-set -e
+set -ex
 
 depend() {
     before rclone
