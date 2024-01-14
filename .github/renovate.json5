@@ -1,0 +1,18 @@
+{
+  baseBranches: [
+    "main",
+    "/^release\\/.*/",
+  ],
+  enabledManagers: [
+    "regex",
+  ],
+  regexManagers: [
+  ],
+  packageRules: [
+    {
+      description: "Disable grouping for regex managed dependencies",
+      matchDepTypes: ["regex"],
+      groupName: null
+    }
+  ],
+}
