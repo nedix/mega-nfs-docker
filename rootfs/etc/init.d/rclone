@@ -34,7 +34,8 @@ start() {
             --buffer-size="$BUFFER_SIZE"M \
             --transfers="$TRANSFERS" \
             --metadata \
-            --server-side-across-configs
+            --server-side-across-configs \
+            --links
 
     while ! healthcheck; do
         sleep 1
