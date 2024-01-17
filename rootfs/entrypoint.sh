@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 
-: ${BUFFER_SIZE:=1}
+: ${BUFFER_SIZE:=64}
 : ${CHUNK_SIZE:=64}
 : ${DIRECTORY:=/}
 : ${READ_CHUNK_SIZE:=16}
