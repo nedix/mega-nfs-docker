@@ -1,7 +1,5 @@
 #!/sbin/openrc-run
 
-set -e
-
 depend() {
     before rclone
 }
@@ -33,6 +31,10 @@ start_pre() {
         mkdir -p "$DIR"
         cp "$LIB" "$DIR"
     done
+
+    chown nobody \
+        "/chroot/${RC_SVCNAME}/home" \
+        "/chroot/${RC_SVCNAME}/tmp"
 }
 
 start() {
@@ -40,14 +42,9 @@ start() {
 
     . /etc/mega/.env
 
-    export HOME="/home"
+    chnobody /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
-    chroot "/chroot/${RC_SVCNAME}" /usr/bin/mega-login "$EMAIL" "$PASSWORD"
-
-    ENDPOINT=$( \
-        chroot "/chroot/${RC_SVCNAME}" /usr/bin/mega-webdav --port="100${RC_SVCNAME##*-}" "$DIRECTORY" \
-        | awk '{print $NF}' \
-    )
+    ENDPOINT=$(chnobody /usr/bin/mega-webdav --port="100${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
 
     sed -i "s|url = #${RC_SVCNAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
 
@@ -57,13 +54,22 @@ start() {
 stop() {
     ebegin "Stopping ${RC_SVCNAME}"
 
-    export HOME="/home"
-
-    chroot "/chroot/${RC_SVCNAME}" /usr/bin/mega-webdav -d --all
+    chnobody /usr/bin/mega-webdav -d --all
 
     eend $?
 }
 
 status() {
     eend 0 # TODO
+}
+
+chnobody() {
+    local CMD="$@"
+
+    su -s /bin/sh -c " \
+            HOME=/home \
+            unshare -r \
+            chroot /chroot/${RC_SVCNAME} \
+            ${CMD}
+        " nobody
 }
