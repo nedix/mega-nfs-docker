@@ -46,9 +46,15 @@ start() {
 
     ENDPOINT=$(chnobody /usr/bin/mega-webdav --port="100${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
 
+    echo "$ENDPOINT" > "/chroot/${RC_SVCNAME}/home/endpoint"
+
     sed -i "s|url = #${RC_SVCNAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
 
-    eend $?
+    while ! healthcheck; do
+        sleep 1
+    done
+
+    eend 0
 }
 
 stop() {
@@ -60,7 +66,15 @@ stop() {
 }
 
 status() {
-    eend 0 # TODO
+    if healthcheck; then
+        eend 0
+    else
+        eend 1
+    fi
+}
+
+healthcheck() {
+    wget -q --spider -O /dev/null $(cat "/chroot/${RC_SVCNAME}/home/endpoint")
 }
 
 chnobody() {
