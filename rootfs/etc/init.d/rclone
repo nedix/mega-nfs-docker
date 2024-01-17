@@ -10,12 +10,30 @@ depend() {
     provide portmap rpc.statd
 }
 
+start_pre() {
+    mkdir -p \
+        /mnt/rclone \
+        /var/rclone
+
+    chown nobody \
+        /mnt/rclone \
+        /var/rclone
+
+    echo "user_allow_other" >> /etc/fuse.conf
+}
+
 start() {
     ebegin "Starting ${RC_SVCNAME}"
 
     . /etc/rclone/.env
 
-    start-stop-daemon --start --background --pidfile "$PID_FILE" --make-pidfile --exec /usr/bin/rclone -- \
+    start-stop-daemon \
+        --start \
+        --background \
+        --make-pidfile \
+        --pidfile "$PID_FILE" \
+        -u nobody \
+        --exec /usr/bin/rclone -- \
         mount default: /mnt/rclone \
             --allow-other \
             --config=/etc/rclone/rclone.conf \
@@ -41,7 +59,7 @@ start() {
         sleep 1
     done
 
-    eend $?
+    eend 0
 }
 
 stop() {

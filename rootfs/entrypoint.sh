@@ -11,7 +11,6 @@
 mkdir -p \
     /etc/mega \
     /etc/rclone \
-    /mnt/rclone \
     /run/openrc
 
 chmod +x \
