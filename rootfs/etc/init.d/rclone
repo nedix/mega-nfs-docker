@@ -1,6 +1,6 @@
 #!/sbin/openrc-run
 
-set -e
+extra_commands="healthcheck"
 
 PID_FILE=/var/run/rclone.pid
 
@@ -31,7 +31,8 @@ start() {
         --start \
         --background \
         --make-pidfile \
-        --pidfile "$PID_FILE" \
+        --pidfile="$PID_FILE" \
+        --wait=100 \
         -u nobody \
         --exec /usr/bin/rclone -- \
         mount default: /mnt/rclone \
@@ -55,11 +56,7 @@ start() {
             --server-side-across-configs \
             --links
 
-    while ! healthcheck; do
-        sleep 1
-    done
-
-    eend 0
+    healthcheck && eend 0 || eend 1
 }
 
 stop() {
@@ -71,11 +68,7 @@ stop() {
 }
 
 status() {
-    if healthcheck; then
-        eend 0
-    else
-        eend 1
-    fi
+    healthcheck && eend 0 || eend 1
 }
 
 healthcheck() {

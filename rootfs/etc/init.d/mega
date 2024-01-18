@@ -1,5 +1,7 @@
 #!/sbin/openrc-run
 
+extra_commands="healthcheck"
+
 depend() {
     before rclone
 }
@@ -50,11 +52,7 @@ start() {
 
     sed -i "s|url = #${RC_SVCNAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
 
-    while ! healthcheck; do
-        sleep 1
-    done
-
-    eend 0
+    healthcheck && eend 0 || eend 1
 }
 
 stop() {
@@ -66,15 +64,11 @@ stop() {
 }
 
 status() {
-    if healthcheck; then
-        eend 0
-    else
-        eend 1
-    fi
+    healthcheck && eend 0 || eend 1
 }
 
 healthcheck() {
-    wget -q --spider -O /dev/null $(cat "/chroot/${RC_SVCNAME}/home/endpoint")
+    (wget -q --spider $(cat "/chroot/${RC_SVCNAME}/home/endpoint")) 2> /dev/null
 }
 
 chnobody() {

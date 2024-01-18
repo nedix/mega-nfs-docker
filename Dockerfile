@@ -101,4 +101,4 @@ EXPOSE 2049/tcp
 
 VOLUME /var/rclone
 
-HEALTHCHECK CMD mountpoint -q /mnt/rclone || exit 1
+HEALTHCHECK CMD rc-status -C sysinit | awk 'NR>1 && !(/started/) {exit 1}'
