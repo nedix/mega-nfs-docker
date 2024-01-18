@@ -3,7 +3,7 @@ ARG MEGA_CMD_VERSION=1.6.3
 ARG MEGA_SDK_VERSION=4.17.1d
 ARG RCLONE_VERSION=1.65.1
 
-FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} as mega
+FROM alpine:${ALPINE_VERSION} as mega
 
 ARG MEGA_CMD_VERSION
 ARG MEGA_SDK_VERSION
@@ -67,9 +67,9 @@ RUN curl -fsSL https://github.com/meganz/MEGAcmd/archive/refs/tags/${MEGA_CMD_VE
     && make -j $(nproc) \
     && make install
 
-FROM --platform=$BUILDPLATFORM rclone/rclone:${RCLONE_VERSION} as rclone
+FROM rclone/rclone:${RCLONE_VERSION} as rclone
 
-FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION}
+FROM alpine:${ALPINE_VERSION}
 
 RUN apk add \
         c-ares \
