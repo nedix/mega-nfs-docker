@@ -48,21 +48,12 @@ EOF
 done
 
 cat << EOF >> /etc/rclone/rclone.conf
-[union]
+[default]
 type = union
 upstreams = ${REMOTES}
 action_policy = eprand
 create_policy = eprand
 search_policy = epff
-EOF
-
-cat << EOF >> /etc/rclone/rclone.conf
-[default]
-type = chunker
-remote = union:
-chunk_size = ${CHUNK_SIZE}M
-hash_type = sha1all
-name_format = *.chunk.#
 EOF
 
 rc-update add nfs
