@@ -38,7 +38,6 @@ start() {
         -u nobody \
         --exec /usr/bin/rclone -- \
         mount default: /mnt/rclone \
-            --allow-other \
             --config=/etc/rclone/rclone.conf \
             --cache-dir=/var/rclone \
             --check-first \
@@ -54,9 +53,11 @@ start() {
             --multi-thread-streams="$STREAMS" \
             --buffer-size="$BUFFER_SIZE"M \
             --transfers="$TRANSFERS" \
+            --allow-other \
+            --cutoff-mode=soft \
+            --links \
             --metadata \
-            --server-side-across-configs \
-            --links
+            --server-side-across-configs
 
     healthcheck && eend 0 || (stop; eend 1)
 }
