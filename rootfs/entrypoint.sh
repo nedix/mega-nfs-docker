@@ -5,8 +5,8 @@
 : ${DIRECTORY:=/}
 : ${READ_CHUNK_SIZE:=16}
 : ${READ_CHUNK_SIZE_LIMIT:=128}
-: ${STREAMS:=12}
-: ${TRANSFERS:=8}
+: ${STREAMS:=1}
+: ${TRANSFERS:=1}
 
 mkdir -p \
     /etc/mega \
@@ -47,6 +47,7 @@ EOF
     ID=$(($ID + 1))
 done
 
+if [ "$TRANSFERS" -gt 1 ]; then
 cat << EOF >> /etc/rclone/rclone.conf
 [default]
 type = union
@@ -55,6 +56,9 @@ action_policy = eprand
 create_policy = eprand
 search_policy = epff
 EOF
+else
+    sed -i "s|\[mega-0\]|\[default\]|" /etc/rclone/rclone.conf
+fi
 
 rc-update add nfs
 rc-update add rclone
