@@ -34,7 +34,7 @@ EOF
 
 ID=0
 REMOTES=""
-while [ "$ID" -lt "$TRANSFERS" ]; do
+while [ "$ID" -lt "$TRANSFERS" ] && [ "$ID" -lt 8 ]; do
 cat << EOF >> /etc/rclone/rclone.conf
 [mega-${ID}]
 type = webdav
