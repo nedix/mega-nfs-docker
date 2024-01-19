@@ -1,5 +1,7 @@
 #!/sbin/openrc-run
 
+. /opt/mega-nfs/jail.sh
+
 extra_commands="healthcheck"
 
 depend() {
@@ -7,14 +9,6 @@ depend() {
 }
 
 start_pre() {
-    mkdir -p \
-        "/chroot/${RC_SVCNAME}/dev" \
-        "/chroot/${RC_SVCNAME}/home" \
-        "/chroot/${RC_SVCNAME}/tmp"
-
-    mknod -m 0666 "/chroot/${RC_SVCNAME}/dev/null" c 1 3
-    mknod -m 0666 "/chroot/${RC_SVCNAME}/dev/urandom" c 1 9
-
     for CMD in sh; do
         BIN=$(which "$CMD")
         DIR="/chroot/${RC_SVCNAME}${BIN%/*}"
@@ -33,10 +27,6 @@ start_pre() {
         mkdir -p "$DIR"
         cp "$LIB" "$DIR"
     done
-
-    chown nobody \
-        "/chroot/${RC_SVCNAME}/home" \
-        "/chroot/${RC_SVCNAME}/tmp"
 }
 
 start() {
@@ -44,9 +34,9 @@ start() {
 
     . /etc/mega/.env
 
-    chnobody /usr/bin/mega-login "$EMAIL" "$PASSWORD"
+    jail /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
-    ENDPOINT=$(chnobody /usr/bin/mega-webdav --port="100${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
+    ENDPOINT=$(jail /usr/bin/mega-webdav --port="100${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
 
     echo "$ENDPOINT" > "/chroot/${RC_SVCNAME}/home/endpoint"
 
@@ -58,7 +48,7 @@ start() {
 stop() {
     ebegin "Stopping ${RC_SVCNAME}"
 
-    chnobody /usr/bin/mega-webdav -d --all
+    jail /usr/bin/mega-webdav -d --all
 
     eend $?
 }
@@ -69,15 +59,4 @@ status() {
 
 healthcheck() {
     (wget -q --spider $(cat "/chroot/${RC_SVCNAME}/home/endpoint")) 2> /dev/null
-}
-
-chnobody() {
-    local CMD="$@"
-
-    su -s /bin/sh -c " \
-            HOME=/home \
-            unshare -r \
-            chroot /chroot/${RC_SVCNAME} \
-            ${CMD}
-        " nobody
 }
