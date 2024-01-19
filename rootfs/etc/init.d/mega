@@ -9,8 +9,6 @@ depend() {
 }
 
 start_pre() {
-    [ -d "/chroot/${RC_SVCNAME}" ] && return
-
     for CMD in sh; do
         BIN=$(which "$CMD")
         DIR="/chroot/${RC_SVCNAME}${BIN%/*}"
