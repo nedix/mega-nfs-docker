@@ -55,8 +55,10 @@ start() {
             --transfers="$TRANSFERS" \
             --allow-other \
             --cutoff-mode=soft \
+            --ignore-checksum \
             --links \
             --metadata \
+            --no-checksum \
             --server-side-across-configs
 
     healthcheck && eend 0 || (stop; eend 1)
