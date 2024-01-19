@@ -11,6 +11,8 @@ depend() {
 }
 
 start_pre() {
+    [ -f "$PID_FILE" ] && return
+
     mkdir -p \
         /mnt/rclone \
         /var/rclone
@@ -56,7 +58,7 @@ start() {
             --server-side-across-configs \
             --links
 
-    healthcheck && eend 0 || eend 1
+    healthcheck && eend 0 || (stop; eend 1)
 }
 
 stop() {
