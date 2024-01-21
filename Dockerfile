@@ -1,10 +1,12 @@
 ARG ALPINE_VERSION=3.19
+ARG CRYPTOPP_VERSION=8.9.0
 ARG MEGA_CMD_VERSION=1.6.3
 ARG MEGA_SDK_VERSION=4.17.1d
 ARG RCLONE_VERSION=1.65.1
 
 FROM alpine:${ALPINE_VERSION} as mega
 
+ARG CRYPTOPP_VERSION
 ARG MEGA_CMD_VERSION
 ARG MEGA_SDK_VERSION
 
@@ -39,7 +41,7 @@ RUN apk add --virtual .build-deps \
 
 WORKDIR /build/cryptopp
 
-RUN curl -fsSL https://cryptopp.com/cryptopp562.zip \
+RUN curl -fsSL "https://cryptopp.com/cryptopp${CRYPTOPP_VERSION//./}.zip" \
     | unzip -d . - \
     && g++ -DNDEBUG -g3 -O2 -march=native -pipe -c *.cpp \
     ; ar rcs libcryptopp.a *.o \
