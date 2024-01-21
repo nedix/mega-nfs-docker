@@ -2,7 +2,7 @@
 
 [ -z "$NAME" ] && NAME=$(basename "${1##.*}")
 
-[ -d "/chroot/${NAME}" ] || {
+[ -z "$NAME" ] || [ -d "/chroot/${NAME}" ] || {
     mkdir -p \
         "/chroot/${NAME}/dev" \
         "/chroot/${NAME}/home" \
