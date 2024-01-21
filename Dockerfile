@@ -84,7 +84,6 @@ RUN apk add \
         nfs-utils \
         nfs-utils-openrc \
         openrc \
-        psmisc \
         sqlite-libs
 
 COPY --from=mega /usr/bin/mega-cmd-server /usr/bin/
