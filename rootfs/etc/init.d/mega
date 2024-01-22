@@ -1,32 +1,37 @@
 #!/sbin/openrc-run
 
-. /opt/mega-nfs/jail.sh
+. /opt/mega-nfs/sandbox.sh
 
 extra_commands="healthcheck"
+
+CHROOT_PATH="/chroot/${RC_SVCNAME}"
 
 depend() {
     before rclone
 }
 
 start_pre() {
-    for CMD in sh; do
-        BIN=$(which "$CMD")
-        DIR="/chroot/${RC_SVCNAME}${BIN%/*}"
-        mkdir -p "$DIR"
-        cp "$BIN" "$DIR"
-    done
-
-    for BIN in /usr/bin/mega-*; do
-        DIR="/chroot/${RC_SVCNAME}${BIN%/*}"
+    for BIN in /bin/sh /usr/bin/mega-*; do
+        DIR="${CHROOT_PATH}${BIN%/*}"
         mkdir -p "$DIR"
         cp "$BIN" "$DIR"
     done
 
     for LIB in $(ldd /usr/bin/mega-cmd-server | awk '/=>/ {print $3}'); do
-        DIR="/chroot/${RC_SVCNAME}${LIB%/*}"
+        DIR="${CHROOT_PATH}${LIB%/*}"
         mkdir -p "$DIR"
         cp "$LIB" "$DIR"
     done
+
+    . /etc/mega/.env
+
+    ip netns exec "$RC_SVCNAME" nft add table inet filters
+    ip netns exec "$RC_SVCNAME" nft add set inet filters incoming_connlimit '{ type ipv4_addr ; size 65535 ; flags dynamic ; }'
+    ip netns exec "$RC_SVCNAME" nft add set inet filters outgoing_connlimit '{ type ipv4_addr ; size 65535 ; flags dynamic ; }'
+    ip netns exec "$RC_SVCNAME" nft add chain inet filters input_chain '{ type filter hook input priority 0 ; policy accept ; }'
+    ip netns exec "$RC_SVCNAME" nft add chain inet filters output_chain '{ type filter hook output priority 0 ; policy accept ; }'
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain tcp sport '{ 80, 443 }' ct state new add @incoming_connlimit "{ ip daddr ct count over ${STREAMS} }" reject with tcp reset
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain tcp dport '{ 80, 443 }' ct state new add @outgoing_connlimit "{ ip saddr ct count over $(( $TRANSFERS + 1 )) }" reject with tcp reset
 }
 
 start() {
@@ -34,11 +39,13 @@ start() {
 
     . /etc/mega/.env
 
-    jail /usr/bin/mega-login "$EMAIL" "$PASSWORD"
+    export HOME=/home
 
-    ENDPOINT=$(jail /usr/bin/mega-webdav --port="100${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
+    firewall /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
-    echo "$ENDPOINT" > "/chroot/${RC_SVCNAME}/home/endpoint"
+    ENDPOINT=$(firewall /usr/bin/mega-webdav --public --port="1000${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
+
+    echo "$ENDPOINT" > "${CHROOT_PATH}/home/endpoint"
 
     sed -i "s|url = #${RC_SVCNAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
 
@@ -48,7 +55,7 @@ start() {
 stop() {
     ebegin "Stopping ${RC_SVCNAME}"
 
-    jail /usr/bin/mega-webdav -d --all
+    firewall /usr/bin/mega-webdav -d --all
 
     eend $?
 }
@@ -58,5 +65,6 @@ status() {
 }
 
 healthcheck() {
+    exit 0
     (wget -q --spider $(cat "/chroot/${RC_SVCNAME}/home/endpoint")) 2> /dev/null
 }

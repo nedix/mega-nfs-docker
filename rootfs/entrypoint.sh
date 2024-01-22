@@ -1,12 +1,13 @@
 #!/usr/bin/env sh
 
-: ${BUFFER_SIZE:=64}
-: ${CHUNK_SIZE:=64}
-: ${DIRECTORY:=/}
-: ${READ_CHUNK_SIZE:=16}
-: ${READ_CHUNK_SIZE_LIMIT:=128}
-: ${STREAMS:=1}
-: ${TRANSFERS:=1}
+: ${MEGA_DIRECTORY:=/}
+: ${MEGA_INSTANCES:=2}
+: ${MEGA_STREAMS:=4}
+: ${MEGA_TRANSFERS:=3}
+: ${RCLONE_BUFFER_SIZE:=64}
+: ${RCLONE_CHUNK_SIZE:=64}
+: ${RCLONE_READ_CHUNK_SIZE:=16}
+: ${RCLONE_READ_CHUNK_SIZE_LIMIT:=128}
 
 mkdir -p \
     /etc/mega \
@@ -19,22 +20,24 @@ chmod +x \
     /etc/init.d/rclone
 
 cat << EOF >> /etc/mega/.env
-EMAIL="$EMAIL"
-PASSWORD="$PASSWORD"
-DIRECTORY="$DIRECTORY"
+EMAIL="$MEGA_EMAIL"
+PASSWORD="$MEGA_PASSWORD"
+DIRECTORY="$MEGA_DIRECTORY"
+STREAMS="$MEGA_STREAMS"
+TRANSFERS="$MEGA_TRANSFERS"
 EOF
 
 cat << EOF >> /etc/rclone/.env
-CHUNK_SIZE="$CHUNK_SIZE"
-READ_CHUNK_SIZE="$READ_CHUNK_SIZE"
-STREAMS="$STREAMS"
-TRANSFERS="$TRANSFERS"
-BUFFER_SIZE="$BUFFER_SIZE"
+BUFFER_SIZE="$RCLONE_BUFFER_SIZE"
+CHUNK_SIZE="$RCLONE_CHUNK_SIZE"
+READ_CHUNK_SIZE="$RCLONE_READ_CHUNK_SIZE"
+STREAMS="$(( $MEGA_STREAMS * $MEGA_INSTANCES ))"
+TRANSFERS="$(( $MEGA_TRANSFERS * $MEGA_INSTANCES ))"
 EOF
 
 ID=0
 REMOTES=""
-while [ "$ID" -lt "$TRANSFERS" ] && [ "$ID" -lt 8 ]; do
+while [ "$ID" -lt "$MEGA_INSTANCES" ] && [ "$ID" -lt 8 ]; do
 cat << EOF >> /etc/rclone/rclone.conf
 [mega-${ID}]
 type = webdav
@@ -46,8 +49,9 @@ EOF
     REMOTES="${REMOTES}mega-${ID}: "
     ID=$(($ID + 1))
 done
+rm /etc/init.d/mega
 
-if [ "$TRANSFERS" -gt 1 ]; then
+if [ "$MEGA_INSTANCES" -gt 1 ]; then
 cat << EOF >> /etc/rclone/rclone.conf
 [default]
 type = union
@@ -62,9 +66,7 @@ fi
 
 rc-update add nfs
 rc-update add rclone
-
-touch /run/openrc/softlevel
-
 sed -i 's/^tty/#&/' /etc/inittab
+touch /run/openrc/softlevel
 
 exec /sbin/init

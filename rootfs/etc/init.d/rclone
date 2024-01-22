@@ -41,10 +41,10 @@ start() {
             --config=/etc/rclone/rclone.conf \
             --cache-dir=/var/rclone \
             --check-first \
-            --checkers="$TRANSFERS" \
+            --checkers="$STREAMS" \
             --vfs-cache-mode=full \
-            --vfs-cache-max-size=$(($STREAMS * $CHUNK_SIZE * 2 + $TRANSFERS * $CHUNK_SIZE))M \
-            --vfs-read-ahead=$(($CHUNK_SIZE * 2))M \
+            --vfs-cache-max-size=$(( $STREAMS * $CHUNK_SIZE * 2 + $TRANSFERS * $CHUNK_SIZE ))M \
+            --vfs-read-ahead=$(( $CHUNK_SIZE * 2 ))M \
             --vfs-read-chunk-size="$READ_CHUNK_SIZE"M \
             --vfs-read-chunk-size-limit="$CHUNK_SIZE"M \
             --vfs-refresh \

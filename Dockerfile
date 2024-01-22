@@ -75,9 +75,11 @@ FROM alpine:${ALPINE_VERSION}
 
 RUN apk add \
         c-ares \
+        conntrack-tools \
         crypto++ \
         freeimage \
         fuse3 \
+        iproute2 \
         libcurl \
         libgcc \
         libsodium \
@@ -85,6 +87,7 @@ RUN apk add \
         libuv \
         nfs-utils \
         nfs-utils-openrc \
+        nftables \
         openrc \
         sqlite-libs
 
