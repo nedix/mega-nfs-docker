@@ -41,9 +41,9 @@ start() {
 
     export HOME=/home
 
-    firewall /usr/bin/mega-login "$EMAIL" "$PASSWORD"
+    sandbox /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
-    ENDPOINT=$(firewall /usr/bin/mega-webdav --public --port="1000${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
+    ENDPOINT=$(sandbox /usr/bin/mega-webdav --public --port="1000${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
 
     echo "$ENDPOINT" > "${CHROOT_PATH}/home/endpoint"
 
@@ -55,7 +55,7 @@ start() {
 stop() {
     ebegin "Stopping ${RC_SVCNAME}"
 
-    firewall /usr/bin/mega-webdav -d --all
+    sandbox /usr/bin/mega-webdav -d --all
 
     eend $?
 }
