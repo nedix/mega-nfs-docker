@@ -53,7 +53,7 @@ rm /etc/init.d/mega
 
 if [ "$MEGA_INSTANCES" -gt 1 ]; then
 cat << EOF >> /etc/rclone/rclone.conf
-[default]
+[remote]
 type = union
 upstreams = ${REMOTES}
 action_policy = eprand
@@ -61,7 +61,20 @@ create_policy = eprand
 search_policy = epff
 EOF
 else
-    sed -i "s|\[mega-0\]|\[default\]|" /etc/rclone/rclone.conf
+    sed -i "s|\[mega-0\]|\[remote\]|" /etc/rclone/rclone.conf
+fi
+
+if [ "$RCLONE_CHUNKER_ENABLED" = true ]; then
+cat << EOF >> /etc/rclone/rclone.conf
+[default]
+type = chunker
+remote = remote:
+chunk_size = ${RCLONE_CHUNK_SIZE}M
+hash_type = sha1all
+name_format = *.chunk.#
+EOF
+else
+    sed -i "s|\[remote\]|\[default\]|" /etc/rclone/rclone.conf
 fi
 
 rc-update add nfs
