@@ -29,14 +29,7 @@ start() {
 
     . /etc/rclone/.env
 
-    start-stop-daemon \
-        --start \
-        --background \
-        --make-pidfile \
-        --pidfile="$PID_FILE" \
-        --wait=100 \
-        -u nobody \
-        --exec /usr/bin/rclone -- \
+    /usr/bin/rclone \
         mount default: /mnt/rclone \
             --config=/etc/rclone/rclone.conf \
             --cache-dir=/var/rclone \
@@ -60,7 +53,7 @@ start() {
             --links \
             --metadata \
             --no-checksum \
-            --server-side-across-configs
+            --server-side-across-configs -vv &
 
     healthcheck && eend 0 || (stop; eend 1)
 }
