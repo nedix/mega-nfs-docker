@@ -4,6 +4,7 @@ setup:
 up: port = 2049
 up:
 	@docker run --rm --name mega-nfs \
+        --cap-add NET_ADMIN \
         --cap-add SYS_ADMIN \
         --device /dev/fuse \
         -v /sys/fs/cgroup/mega-nfs:/sys/fs/cgroup:rw \

@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 
-: ${SANDBOX_NAME:="$RC_SVCNAME"}
-: ${SANDBOX_NUMBER:="${RC_SVCNAME##*-}"}
-: ${SANDBOX_PATH:="/chroot/${RC_SVCNAME}"}
+: ${SANDBOX_NAME:="sbx-0"}
+: ${SANDBOX_NUMBER:="${SANDBOX_NAME##*-}"}
+: ${SANDBOX_PATH:="/chroot/${SANDBOX_NAME}"}
 
 setup_chroot() {
     mkdir -p \
@@ -19,39 +19,47 @@ setup_chroot() {
 }
 
 setup_network() {
-    HOST_VETH="mega${SANDBOX_NUMBER}"
-    PEER_VETH="veth${SANDBOX_NUMBER}"
-    FORWARD_SANDBOX_PORT="1000${SANDBOX_NUMBER}"
+    DEVICE="mega${SANDBOX_NUMBER}"
 
     # Create a network namespace
     ip netns add "$SANDBOX_NAME"
 
-    # Create a veth pair
-    ip link add "$HOST_VETH" type veth peer name "$PEER_VETH"
-    ip link set "$PEER_VETH" netns "$SANDBOX_NAME"
-    ip netns exec "$SANDBOX_NAME" ip link set "$PEER_VETH" name eth0
+    # Create a vlan device for the host
+    ip link add "$DEVICE" link eth0 type ipvlan mode l3s
+    ip link set "$DEVICE" up
+    ip addr add "10.0.${SANDBOX_NUMBER}.0/31" dev "$DEVICE"
+    ip route add "10.0.${SANDBOX_NUMBER}.1" dev "$DEVICE"
 
-    # Bring up the interfaces
-    ip link set "$HOST_VETH" up
-    ip netns exec "$SANDBOX_NAME" ip link set lo up
+    # Create devices for the namespace
+    ip link add veth link eth0 type ipvlan mode l3s
+    ip link set veth netns "$SANDBOX_NAME"
+    ip netns exec "$SANDBOX_NAME" ip link set veth name eth0
     ip netns exec "$SANDBOX_NAME" ip link set eth0 up
+    ip netns exec "$SANDBOX_NAME" ip link set lo up
+    ip netns exec "$SANDBOX_NAME" ip addr add "10.0.${SANDBOX_NUMBER}.1" dev eth0
+    ip netns exec "$SANDBOX_NAME" ip route add default dev eth0
 
-    # Assign IP addresses to the namespace
-    ip addr add "10.0.${SANDBOX_NUMBER}.1/30" dev "$HOST_VETH"
-    ip netns exec "$SANDBOX_NAME" ip addr add "10.0.${SANDBOX_NUMBER}.2/30" dev eth0
-    ip netns exec "$SANDBOX_NAME" ip route add default via "10.0.${SANDBOX_NUMBER}.1"
+    # Set up host policies
+    nft add table inet filter
+    nft add chain inet filter input '{ type filter hook input priority 0; policy accept; }'
+    nft add chain inet filter forward '{ type filter hook forward priority 0; policy accept; }'
+    nft add chain inet filter output '{ type filter hook output priority 0; policy accept; }'
+    nft add table inet nat
+    nft add chain inet nat input '{ type nat hook input priority 0; policy accept; }'
+    nft add chain inet nat output '{ type nat hook output priority 0; policy accept; }'
+    nft add chain inet nat prerouting '{ type nat hook prerouting priority 0; policy accept; }'
+    nft add chain inet nat postrouting '{ type nat hook postrouting priority 0; policy accept; }'
 
-    # Route traffic to and from the namespace
-    nft add rule inet filter forward iifname "$HOST_VETH" oifname eth0 accept
-    nft add rule inet filter forward iifname eth0 oifname "$HOST_VETH" accept
-    nft add rule inet nat postrouting iifname "$HOST_VETH" masquerade
-    nft add rule inet nat postrouting oifname "$HOST_VETH" masquerade
-
-    # Route local traffic to the namespace
-    nft add rule inet nat output ip daddr 127.0.0.1 tcp dport "$FORWARD_SANDBOX_PORT" dnat to "10.0.${SANDBOX_NUMBER}.2:${FORWARD_SANDBOX_PORT}"
+    # Set up namespace policies
+    ip netns exec "$SANDBOX_NAME" nft add table inet filter
+    ip netns exec "$SANDBOX_NAME" nft add chain inet filter input '{ type filter hook input priority 0; policy accept; }'
+    ip netns exec "$SANDBOX_NAME" nft add chain inet filter output '{ type filter hook output priority 0; policy accept; }'
     ip netns exec "$SANDBOX_NAME" nft add table inet nat
-    ip netns exec "$SANDBOX_NAME" nft add chain inet nat prerouting \{ type nat hook prerouting priority 0 \; \}
-    ip netns exec "$SANDBOX_NAME" nft add rule inet nat prerouting tcp dport "$FORWARD_SANDBOX_PORT" dnat ip to "127.0.0.1:${FORWARD_SANDBOX_PORT}"
+    ip netns exec "$SANDBOX_NAME" nft add chain inet nat prerouting '{ type nat hook prerouting priority 0; policy accept; }'
+    ip netns exec "$SANDBOX_NAME" nft add chain inet nat postrouting '{ type nat hook postrouting priority 100; policy accept; }'
+
+    # Set up network address translation
+    nft add rule inet nat postrouting oifname eth0 ip saddr "10.0.${SANDBOX_NUMBER}.1" masquerade
 }
 
 sandbox() {

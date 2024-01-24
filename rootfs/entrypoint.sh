@@ -9,6 +9,10 @@
 : ${RCLONE_READ_CHUNK_SIZE:=16}
 : ${RCLONE_READ_CHUNK_SIZE_LIMIT:=128}
 
+iptables-save | iptables-restore-translate -f /dev/stdin > /etc/nftables.d/iptables.nft
+iptables -F; iptables -X; iptables -P INPUT ACCEPT; iptables -P OUTPUT ACCEPT; iptables -P FORWARD ACCEPT
+apk del iptables
+
 mkdir -p \
     /etc/mega \
     /etc/rclone \
@@ -80,6 +84,7 @@ fi
 rc-update add nfs
 rc-update add nftables
 rc-update add rclone
+
 sed -i 's/^tty/#&/' /etc/inittab
 touch /run/openrc/softlevel
 

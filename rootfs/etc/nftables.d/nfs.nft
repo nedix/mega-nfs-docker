@@ -1,6 +1,10 @@
 table inet filter {
     chain input {
-        type filter hook input priority filter; policy drop;
+        type filter hook input priority filter; policy accept;
         tcp dport 2049 accept
+    }
+    chain output {
+        type filter hook output priority filter; policy accept;
+        tcp sport 2049 accept
     }
 }

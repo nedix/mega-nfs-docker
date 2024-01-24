@@ -80,6 +80,7 @@ RUN apk add \
         freeimage \
         fuse3 \
         iproute2 \
+        iptables \
         libcurl \
         libgcc \
         libsodium \
