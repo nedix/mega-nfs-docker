@@ -39,12 +39,12 @@ start_pre() {
     ip netns exec "$RC_SVCNAME" nft add chain inet filters output_chain '{ type filter hook output priority 0 ; policy accept ; }'
 
     # Add rules to mark established connections with a rate greater than 0 bits/second
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 0 ct state established limit rate over 0/ms add @input_connlimit "{ ip daddr rate over 0/ms }" ct mark set 1
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ip saddr 10.0.0.0/8 ct mark 0 ct state established limit rate over 0/ms add @output_connlimit "{ ip saddr rate over 0/ms }" ct mark set 1
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 0 ct state established limit rate over 0/second add @input_connlimit "{ ip daddr rate over 0/second }" ct mark set 1
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ip saddr 10.0.0.0/8 ct mark 0 ct state established limit rate over 0/second add @output_connlimit "{ ip saddr rate over 0/second }" ct mark set 1
 
     # Add rules to drop established connections with a rate greater than 0 bits/second when the limit is exceeded
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 1 ct state established limit rate over 0/ms add @input_connlimit "{ ip daddr rate over ${STREAMS} }" ct mark set 0 reject with tcp reset
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ip saddr 10.0.0.0/8 ct mark 1 ct state established limit rate over 0/ms add @output_connlimit "{ ip saddr rate over ${TRANSFERS} }" ct mark set 0 reject with tcp reset
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 1 ct state established limit rate over 0/second add @input_connlimit "{ ip daddr rate over ${STREAMS} }" ct mark set 0 reject with tcp reset
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ip saddr 10.0.0.0/8 ct mark 1 ct state established limit rate over 0/second add @output_connlimit "{ ip saddr rate over ${TRANSFERS} }" ct mark set 0 reject with tcp reset
 
     # Add rules to remove connections from the map when they are no longer established
     ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 1 ct state !established ct mark set 0
