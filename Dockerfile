@@ -88,6 +88,7 @@ RUN apk add \
         nfs-utils \
         nfs-utils-openrc \
         nftables \
+        nftables-openrc \
         openrc \
         sqlite-libs
 

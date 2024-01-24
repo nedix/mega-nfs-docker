@@ -1,0 +1,6 @@
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+        tcp dport 2049 accept
+    }
+}

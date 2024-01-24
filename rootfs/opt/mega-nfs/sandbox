@@ -1,0 +1,68 @@
+#!/usr/bin/env sh
+
+: ${SANDBOX_NAME:="$RC_SVCNAME"}
+: ${SANDBOX_NUMBER:="${RC_SVCNAME##*-}"}
+: ${SANDBOX_PATH:="/chroot/${RC_SVCNAME}"}
+
+setup_chroot() {
+    mkdir -p \
+        "${SANDBOX_PATH}/dev" \
+        "${SANDBOX_PATH}/home" \
+        "${SANDBOX_PATH}/tmp"
+
+    chown nobody \
+        "${SANDBOX_PATH}/home" \
+        "${SANDBOX_PATH}/tmp"
+
+    mknod -m 0666 "${SANDBOX_PATH}/dev/null" c 1 3
+    mknod -m 0666 "${SANDBOX_PATH}/dev/urandom" c 1 9
+}
+
+setup_network() {
+    HOST_VETH="mega${SANDBOX_NUMBER}"
+    PEER_VETH="veth${SANDBOX_NUMBER}"
+    FORWARD_SANDBOX_PORT="1000${SANDBOX_NUMBER}"
+
+    # Create a network namespace
+    ip netns add "$SANDBOX_NAME"
+
+    # Create a veth pair
+    ip link add "$HOST_VETH" type veth peer name "$PEER_VETH"
+    ip link set "$PEER_VETH" netns "$SANDBOX_NAME"
+    ip netns exec "$SANDBOX_NAME" ip link set "$PEER_VETH" name eth0
+
+    # Bring up the interfaces
+    ip link set "$HOST_VETH" up
+    ip netns exec "$SANDBOX_NAME" ip link set lo up
+    ip netns exec "$SANDBOX_NAME" ip link set eth0 up
+
+    # Assign IP addresses to the namespace
+    ip addr add "10.0.${SANDBOX_NUMBER}.1/30" dev "$HOST_VETH"
+    ip netns exec "$SANDBOX_NAME" ip addr add "10.0.${SANDBOX_NUMBER}.2/30" dev eth0
+    ip netns exec "$SANDBOX_NAME" ip route add default via "10.0.${SANDBOX_NUMBER}.1"
+
+    # Route traffic to and from the namespace
+    nft add rule inet filter forward iifname "$HOST_VETH" oifname eth0 accept
+    nft add rule inet filter forward iifname eth0 oifname "$HOST_VETH" accept
+    nft add rule inet nat postrouting iifname "$HOST_VETH" masquerade
+    nft add rule inet nat postrouting oifname "$HOST_VETH" masquerade
+
+    # Route local traffic to the namespace
+    nft add rule inet nat output ip daddr 127.0.0.1 tcp dport "$FORWARD_SANDBOX_PORT" dnat to "10.0.${SANDBOX_NUMBER}.2:${FORWARD_SANDBOX_PORT}"
+    ip netns exec "$SANDBOX_NAME" nft add table inet nat
+    ip netns exec "$SANDBOX_NAME" nft add chain inet nat prerouting \{ type nat hook prerouting priority 0 \; \}
+    ip netns exec "$SANDBOX_NAME" nft add rule inet nat prerouting tcp dport "$FORWARD_SANDBOX_PORT" dnat ip to "127.0.0.1:${FORWARD_SANDBOX_PORT}"
+}
+
+sandbox() {
+    CMD="$@"
+
+    ip netns exec ${SANDBOX_NAME} su -s /bin/sh -c " \
+        export HOME=/home
+        unshare -r \
+        chroot ${SANDBOX_PATH} \
+        ${CMD}
+    " nobody
+}
+
+if type "$1" | grep -q "function"; then "$1"; else sandbox "$@"; fi

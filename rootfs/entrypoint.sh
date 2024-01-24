@@ -78,6 +78,7 @@ else
 fi
 
 rc-update add nfs
+rc-update add nftables
 rc-update add rclone
 sed -i 's/^tty/#&/' /etc/inittab
 touch /run/openrc/softlevel
