@@ -26,14 +26,29 @@ start_pre() {
     done
 
     . /etc/mega/.env
+
+    # Create a table to hold the connection limits
     ip netns exec "$RC_SVCNAME" nft add table inet filters
-    ip netns exec "$RC_SVCNAME" nft add set inet filters incoming_connlimit '{ type ipv4_addr ; size 65535 ; flags dynamic ; }'
-    ip netns exec "$RC_SVCNAME" nft add set inet filters outgoing_connlimit '{ type ipv4_addr ; size 65535 ; flags dynamic ; }'
+
+    # Create sets to track the input and output connection limits
+    ip netns exec "$RC_SVCNAME" nft add set inet filters input_connlimit '{ type ipv4_addr ; counter ; flags dynamic ; }'
+    ip netns exec "$RC_SVCNAME" nft add set inet filters output_connlimit '{ type ipv4_addr ; counter ; flags dynamic ; }'
+
+    # Create chains for the input and output traffic
     ip netns exec "$RC_SVCNAME" nft add chain inet filters input_chain '{ type filter hook input priority 0 ; policy accept ; }'
     ip netns exec "$RC_SVCNAME" nft add chain inet filters output_chain '{ type filter hook output priority 0 ; policy accept ; }'
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain tcp sport '{ 80, 443 }' ct state new add @incoming_connlimit "{ ip daddr ct count over ${STREAMS} }" reject with tcp reset
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain tcp dport '{ 80, 443 }' ct state new add @outgoing_connlimit "{ ip saddr ct count over $(( $TRANSFERS + 1 )) }" reject with tcp reset
-    ip netns exec "$RC_SVCNAME" rc-service nftables save
+
+    # Add rules to mark established connections with a rate greater than 0 bits/second
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ct mark 0 ct state established limit rate over 0/ms add @input_connlimit "{ ip daddr rate over 0/ms }" ct mark set 1
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ct mark 0 ct state established limit rate over 0/ms add @output_connlimit "{ ip saddr rate over 0/ms }" ct mark set 1
+
+    # Add rules to drop established connections with a rate greater than 0 bits/second when the limit is exceeded
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ct mark 1 ct state established limit rate over 0/ms add @input_connlimit "{ ip daddr rate over ${STREAMS} }" ct mark set 0 reject with tcp reset
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ct mark 1 ct state established limit rate over 0/ms add @output_connlimit "{ ip saddr rate over ${TRANSFERS} }" ct mark set 0 reject with tcp reset
+
+    # Add rules to remove connections from the map when they are no longer established
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ct mark 1 ct state !established ct mark set 0
+    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ct mark 1 ct state !established ct mark set 0
 }
 
 start() {
