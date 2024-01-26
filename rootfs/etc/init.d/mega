@@ -2,6 +2,7 @@
 
 extra_commands="healthcheck"
 
+export SANDBOX_NUMBER="${RC_SVCNAME##*-}"
 export SANDBOX_PATH="/chroot/${RC_SVCNAME}"
 
 depend() {
@@ -28,27 +29,56 @@ start_pre() {
     . /etc/mega/.env
 
     # Create a table to hold the connection limits
-    ip netns exec "$RC_SVCNAME" nft add table inet filters
-
-    # Create sets to track the input and output connection limits
-    ip netns exec "$RC_SVCNAME" nft add set inet filters input_connlimit '{ type ipv4_addr ; counter ; flags dynamic ; }'
-    ip netns exec "$RC_SVCNAME" nft add set inet filters output_connlimit '{ type ipv4_addr ; counter ; flags dynamic ; }'
+    ip netns exec "$RC_SVCNAME" nft add table inet filter_table
 
     # Create chains for the input and output traffic
-    ip netns exec "$RC_SVCNAME" nft add chain inet filters input_chain '{ type filter hook input priority 0 ; policy accept ; }'
-    ip netns exec "$RC_SVCNAME" nft add chain inet filters output_chain '{ type filter hook output priority 0 ; policy accept ; }'
+    ip netns exec "$RC_SVCNAME" nft add chain inet filter_table input_chain '{ type filter hook input priority 0; policy accept; }'
+    ip netns exec "$RC_SVCNAME" nft add chain inet filter_table output_chain '{ type filter hook output priority 0; policy accept; }'
 
-    # Add rules to mark established connections with a rate greater than 0 bits/second
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 0 ct state established limit rate over 0/second add @input_connlimit "{ ip daddr rate over 0/second }" ct mark set 1
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ip saddr 10.0.0.0/8 ct mark 0 ct state established limit rate over 0/second add @output_connlimit "{ ip saddr rate over 0/second }" ct mark set 1
+    # Create sets to track active connections
+    ip netns exec "$RC_SVCNAME" nft add set inet filter_table streams_limit '{ type ipv4_addr; flags dynamic; }'
+    ip netns exec "$RC_SVCNAME" nft add set inet filter_table transfers_limit '{ type ipv4_addr; flags dynamic; }'
 
-    # Add rules to drop established connections with a rate greater than 0 bits/second when the limit is exceeded
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 1 ct state established limit rate over 0/second add @input_connlimit "{ ip daddr rate over ${STREAMS} }" ct mark set 0 reject with tcp reset
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ip saddr 10.0.0.0/8 ct mark 1 ct state established limit rate over 0/second add @output_connlimit "{ ip saddr rate over ${TRANSFERS} }" ct mark set 0 reject with tcp reset
+    # Add a rule to accept incoming service traffic
+    ip netns exec "$RC_SVCNAME" nft add rule inet filter_table input_chain \
+        ct state established \
+        ip daddr 127.0.0.1 \
+        tcp dport "1000${SANDBOX_NUMBER}" \
+        accept
 
-    # Add rules to remove connections from the map when they are no longer established
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters input_chain ip daddr 10.0.0.0/8 ct mark 1 ct state !established ct mark set 0
-    ip netns exec "$RC_SVCNAME" nft add rule inet filters output_chain ip saddr 10.0.0.0/8 ct mark 1 ct state !established ct mark set 0
+    # Add a rule to accept idle incoming connections
+    ip netns exec "$RC_SVCNAME" nft add rule inet filter_table input_chain \
+        ct state established \
+        ip daddr 127.0.0.1 \
+        meter idle_streams '{ ip saddr . tcp sport timeout 1s limit rate 1/second }' \
+        accept
+
+    # Add a rule to accept idle outgoing connections
+    ip netns exec "$RC_SVCNAME" nft add rule inet filter_table output_chain \
+        ct state established \
+        ip saddr 127.0.0.1 \
+        meter idle_transfers '{ ip daddr . tcp dport timeout 1s limit rate 1/second }' \
+        accept
+
+    # Add a rule to reject incoming connections that exceed the limits
+    ip netns exec "$RC_SVCNAME" nft add rule inet filter_table input_chain \
+        ct state established \
+        ip daddr 127.0.0.1 \
+        tcp dport '!=' "1000${SANDBOX_NUMBER}" \
+        meter active_streams '{ ip saddr . tcp sport timeout 1s limit rate over 1/second }' \
+        add @streams_limit "{ ip daddr ct count over ${STREAMS} }" \
+        reject with tcp reset
+
+    # Add a rule to reject outgoing connections that exceed the limits
+    ip netns exec "$RC_SVCNAME" nft add rule inet filter_table output_chain \
+        ct state established \
+        ip saddr 127.0.0.1 \
+        tcp sport '!=' "1000${SANDBOX_NUMBER}" \
+        meter active_transfers '{ ip daddr . tcp dport timeout 1s limit rate over 1/second }' \
+        add @transfers_limit "{ ip saddr ct count over ${TRANSFERS} }" \
+        reject with tcp reset
+
+    ip netns exec "$RC_SVCNAME" nft list ruleset
 }
 
 start() {
@@ -58,7 +88,7 @@ start() {
 
     /opt/mega-nfs/sandbox /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
-    ENDPOINT=$(/opt/mega-nfs/sandbox /usr/bin/mega-webdav --port="1000${RC_SVCNAME##*-}" "$DIRECTORY" | awk '{print $NF}')
+    ENDPOINT=$(/opt/mega-nfs/sandbox /usr/bin/mega-webdav --port="1000${SANDBOX_NUMBER}" "$DIRECTORY" | awk '{print $NF}')
 
     echo "$ENDPOINT" > "${SANDBOX_PATH}/home/endpoint"
 
@@ -70,7 +100,7 @@ start() {
 stop() {
     ebegin "Stopping ${RC_SVCNAME}"
 
-    sandbox /usr/bin/mega-webdav -d --all
+    /opt/mega-nfs/sandbox sandbox /usr/bin/mega-webdav -d --all
 
     eend $?
 }

@@ -3,6 +3,7 @@
 : ${SANDBOX_NAME:="$RC_SVCNAME"}
 : ${SANDBOX_NUMBER:="${RC_SVCNAME##*-}"}
 : ${SANDBOX_PATH:="/chroot/${RC_SVCNAME}"}
+: ${FORWARD_SANDBOX_PORT:="1000${RC_SVCNAME##*-}"}
 
 setup_chroot() {
     mkdir -p \
@@ -21,7 +22,6 @@ setup_chroot() {
 setup_network() {
     HOST_VETH="mega${SANDBOX_NUMBER}"
     PEER_VETH="veth${SANDBOX_NUMBER}"
-    FORWARD_SANDBOX_PORT="1000${SANDBOX_NUMBER}"
 
     # Create a network namespace
     ip netns add "$SANDBOX_NAME"
