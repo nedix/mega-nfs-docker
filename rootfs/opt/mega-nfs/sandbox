@@ -50,7 +50,7 @@ setup_network() {
     # Route local traffic to the namespace
     nft add rule inet nat output ip daddr 127.0.0.1 tcp dport "$FORWARD_SANDBOX_PORT" dnat to "10.0.${SANDBOX_NUMBER}.2:${FORWARD_SANDBOX_PORT}"
     ip netns exec "$SANDBOX_NAME" nft add table inet nat
-    ip netns exec "$SANDBOX_NAME" nft add chain inet nat prerouting \{ type nat hook prerouting priority 0 \; \}
+    ip netns exec "$SANDBOX_NAME" nft add chain inet nat prerouting '{ type nat hook prerouting priority 0; }'
     ip netns exec "$SANDBOX_NAME" nft add rule inet nat prerouting tcp dport "$FORWARD_SANDBOX_PORT" dnat ip to "127.0.0.1:${FORWARD_SANDBOX_PORT}"
 }
 

@@ -35,10 +35,6 @@ start_pre() {
     ip netns exec "$RC_SVCNAME" nft add chain inet filter_table input_chain '{ type filter hook input priority 0; policy accept; }'
     ip netns exec "$RC_SVCNAME" nft add chain inet filter_table output_chain '{ type filter hook output priority 0; policy accept; }'
 
-    # Create sets to track active connections
-    ip netns exec "$RC_SVCNAME" nft add set inet filter_table streams_limit '{ type ipv4_addr; flags dynamic; }'
-    ip netns exec "$RC_SVCNAME" nft add set inet filter_table transfers_limit '{ type ipv4_addr; flags dynamic; }'
-
     # Add a rule to accept incoming service traffic
     ip netns exec "$RC_SVCNAME" nft add rule inet filter_table input_chain \
         ct state established \
@@ -46,39 +42,44 @@ start_pre() {
         tcp dport "1000${SANDBOX_NUMBER}" \
         accept
 
+    # Add a rule to accept outgoing service traffic
+    ip netns exec "$RC_SVCNAME" nft add rule inet filter_table output_chain \
+        ct state established \
+        ip saddr 127.0.0.1 \
+        tcp sport "1000${SANDBOX_NUMBER}" \
+        accept
+
     # Add a rule to accept idle incoming connections
     ip netns exec "$RC_SVCNAME" nft add rule inet filter_table input_chain \
         ct state established \
-        ip daddr 127.0.0.1 \
+        ip daddr "10.0.${SANDBOX_NUMBER}.2" \
         meter idle_streams '{ ip saddr . tcp sport timeout 1s limit rate 1/second }' \
         accept
 
     # Add a rule to accept idle outgoing connections
     ip netns exec "$RC_SVCNAME" nft add rule inet filter_table output_chain \
         ct state established \
-        ip saddr 127.0.0.1 \
+        ip saddr "10.0.${SANDBOX_NUMBER}.2" \
         meter idle_transfers '{ ip daddr . tcp dport timeout 1s limit rate 1/second }' \
         accept
 
     # Add a rule to reject incoming connections that exceed the limits
     ip netns exec "$RC_SVCNAME" nft add rule inet filter_table input_chain \
         ct state established \
-        ip daddr 127.0.0.1 \
+        ip daddr "10.0.${SANDBOX_NUMBER}.2" \
         tcp dport '!=' "1000${SANDBOX_NUMBER}" \
-        meter active_streams '{ ip saddr . tcp sport timeout 1s limit rate over 1/second }' \
-        add @streams_limit "{ ip daddr ct count over ${STREAMS} }" \
+        meter active_streams '{ ip daddr . tcp dport timeout 1s limit rate over 1 bytes/second burst 0 bytes }' \
+        meter max_streams "{ ip daddr . tcp dport ct count over ${STREAMS} }" \
         reject with tcp reset
 
     # Add a rule to reject outgoing connections that exceed the limits
     ip netns exec "$RC_SVCNAME" nft add rule inet filter_table output_chain \
         ct state established \
-        ip saddr 127.0.0.1 \
+        ip saddr "10.0.${SANDBOX_NUMBER}.2" \
         tcp sport '!=' "1000${SANDBOX_NUMBER}" \
-        meter active_transfers '{ ip daddr . tcp dport timeout 1s limit rate over 1/second }' \
-        add @transfers_limit "{ ip saddr ct count over ${TRANSFERS} }" \
+        meter active_transfers '{ ip saddr . tcp sport timeout 1s limit rate over 1 bytes/second burst 0 bytes }' \
+        meter max_transfers "{ ip saddr . tcp sport ct count over ${TRANSFERS} }" \
         reject with tcp reset
-
-    ip netns exec "$RC_SVCNAME" nft list ruleset
 }
 
 start() {
