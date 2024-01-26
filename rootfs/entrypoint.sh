@@ -77,9 +77,13 @@ else
     sed -i "s|\[remote\]|\[default\]|" /etc/rclone/rclone.conf
 fi
 
+iptables-save | iptables-restore-translate -f /dev/stdin > /etc/nftables.d/iptables.nft
+iptables --flush
+
 rc-update add nfs
 rc-update add nftables
 rc-update add rclone
+
 sed -i 's/^tty/#&/' /etc/inittab
 touch /run/openrc/softlevel
 
