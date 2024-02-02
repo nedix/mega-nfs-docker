@@ -45,12 +45,10 @@ setup_network() {
 
     # Set up host policies
     nft add table inet filter
-    nft add chain inet filter input '{ type filter hook input priority 0; policy accept; }'
     nft add chain inet filter forward '{ type filter hook forward priority 0; policy accept; }'
+    nft add chain inet filter input '{ type filter hook input priority 0; policy accept; }'
     nft add chain inet filter output '{ type filter hook output priority 0; policy accept; }'
     nft add table inet nat
-    nft add chain inet nat input '{ type nat hook input priority 0; policy accept; }'
-    nft add chain inet nat output '{ type nat hook output priority 0; policy accept; }'
     nft add chain inet nat prerouting '{ type nat hook prerouting priority 0; policy accept; }'
     nft add chain inet nat postrouting '{ type nat hook postrouting priority 0; policy accept; }'
 
@@ -61,11 +59,6 @@ setup_network() {
     ip netns exec "$SANDBOX_NAME" nft add table inet nat
     ip netns exec "$SANDBOX_NAME" nft add chain inet nat prerouting '{ type nat hook prerouting priority 0; policy accept; }'
     ip netns exec "$SANDBOX_NAME" nft add chain inet nat postrouting '{ type nat hook postrouting priority 100; policy accept; }'
-
-    # Set up network address translation
-    ip netns exec "$SANDBOX_NAME" nft add chain inet nat postrouting
-    nft add rule inet nat postrouting iifname "$DEVICE" masquerade
-    ip netns exec "$SANDBOX_NAME" nft add rule inet nat postrouting oifname eth0 masquerade
 }
 
 sandbox() {
