@@ -15,7 +15,7 @@
 : ${RCLONE_VFS_READ_CHUNK_SIZE:=16}
 : ${RCLONE_VFS_READ_CHUNK_SIZE_LIMIT:=64}
 
-iptables-save | iptables-restore-translate -f /dev/stdin > /etc/nftables.d/iptables.nft
+iptables-save | iptables-restore-translate -f /dev/stdin > /etc/nftables.d/docker.nft
 iptables -F; iptables -X; iptables -P INPUT ACCEPT; iptables -P OUTPUT ACCEPT; iptables -P FORWARD ACCEPT
 apk del iptables
 

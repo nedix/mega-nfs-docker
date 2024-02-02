@@ -29,6 +29,11 @@ start_pre() {
 
     . /etc/mega/.env
 
+    # Set up routing tables
+    ip netns exec "$SANDBOX_NAME" nft add table inet filter
+    ip netns exec "$SANDBOX_NAME" nft add chain inet filter input '{ type filter hook input priority 0; policy accept; }'
+    ip netns exec "$SANDBOX_NAME" nft add chain inet filter output '{ type filter hook output priority 0; policy accept; }'
+
     # Accept service traffic
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter input tcp dport "1000${SANDBOX_NUMBER}" accept
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter output tcp sport "1000${SANDBOX_NUMBER}" accept

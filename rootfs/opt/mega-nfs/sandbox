@@ -19,6 +19,8 @@ setup_chroot() {
 }
 
 setup_network() {
+    set -ex
+
     DEVICE="mega${SANDBOX_NUMBER}"
     ADDRESS="$(ip addr show dev eth0 | awk '/inet/ {print $2}')"
     GATEWAY="$(ip route show dev eth0 | awk '/default/ {print $3}')"
@@ -32,10 +34,10 @@ setup_network() {
     ip addr add "10.0.${SANDBOX_NUMBER}.0/31" dev "$DEVICE"
     ip route add "10.0.${SANDBOX_NUMBER}.1" dev "$DEVICE"
 
-    # Create devices for the namespace
-    ip link add veth link eth0 type macvlan mode bridge
-    ip link set veth netns "$SANDBOX_NAME"
-    ip netns exec "$SANDBOX_NAME" ip link set veth name eth0
+    # Create a vlan device for the namespace
+    ip link add vlan link eth0 type macvlan mode bridge
+    ip link set vlan netns "$SANDBOX_NAME"
+    ip netns exec "$SANDBOX_NAME" ip link set vlan name eth0
     ip netns exec "$SANDBOX_NAME" ip link set eth0 up
     ip netns exec "$SANDBOX_NAME" ip link set lo up
     ip netns exec "$SANDBOX_NAME" ip addr add "10.0.${SANDBOX_NUMBER}.1" dev eth0
@@ -43,29 +45,10 @@ setup_network() {
     ip netns exec "$SANDBOX_NAME" ip addr add "$ADDRESS" dev eth0
     ip netns exec "$SANDBOX_NAME" ip route add default via "$GATEWAY" dev eth0
 
-    # Set up host policies
-    nft add table inet filter
-    nft add chain inet filter input '{ type filter hook input priority 0; policy accept; }'
-    nft add chain inet filter forward '{ type filter hook forward priority 0; policy accept; }'
-    nft add chain inet filter output '{ type filter hook output priority 0; policy accept; }'
-    nft add table inet nat
-    nft add chain inet nat input '{ type nat hook input priority 0; policy accept; }'
-    nft add chain inet nat output '{ type nat hook output priority 0; policy accept; }'
-    nft add chain inet nat prerouting '{ type nat hook prerouting priority 0; policy accept; }'
-    nft add chain inet nat postrouting '{ type nat hook postrouting priority 0; policy accept; }'
-
-    # Set up namespace policies
-    ip netns exec "$SANDBOX_NAME" nft add table inet filter
-    ip netns exec "$SANDBOX_NAME" nft add chain inet filter input '{ type filter hook input priority 0; policy accept; }'
-    ip netns exec "$SANDBOX_NAME" nft add chain inet filter output '{ type filter hook output priority 0; policy accept; }'
-    ip netns exec "$SANDBOX_NAME" nft add table inet nat
-    ip netns exec "$SANDBOX_NAME" nft add chain inet nat prerouting '{ type nat hook prerouting priority 0; policy accept; }'
-    ip netns exec "$SANDBOX_NAME" nft add chain inet nat postrouting '{ type nat hook postrouting priority 100; policy accept; }'
-
-    # Set up network address translation
-    ip netns exec "$SANDBOX_NAME" nft add chain inet nat postrouting
-    nft add rule inet nat postrouting iifname "$DEVICE" masquerade
-    ip netns exec "$SANDBOX_NAME" nft add rule inet nat postrouting oifname eth0 masquerade
+    # Set up routing tables
+    ip netns exec "$SANDBOX_NAME" /usr/sbin/nft -f /etc/nftables.d/docker.nft
+    nft add rule inet filter input oifname "$DEVICE" accept
+    nft add rule inet filter output iifname "$DEVICE" accept
 }
 
 sandbox() {
