@@ -2,7 +2,7 @@ ARG ALPINE_VERSION=3.19
 ARG CRYPTOPP_VERSION=8.9.0
 ARG MEGA_CMD_VERSION=1.6.3
 ARG MEGA_SDK_VERSION=4.17.1d
-ARG RCLONE_VERSION=1.65.1
+ARG RCLONE_VERSION=1.65.2
 
 FROM alpine:${ALPINE_VERSION} as mega
 
@@ -57,7 +57,7 @@ RUN curl -fsSL https://github.com/meganz/MEGAcmd/archive/refs/tags/${MEGA_CMD_VE
     && CXXFLAGS="-flto=auto -fpermissive -static-libgcc -static-libstdc++" \
     && ./autogen.sh \
     && ./configure \
-        CXXFLAGS="${CXXFLAGS}" \
+        CXXFLAGS="$CXXFLAGS" \
         --build=$CBUILD \
         --host=$CHOST \
         --localstatedir=/var \

@@ -34,23 +34,17 @@ start_pre() {
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter input tcp dport "1000${SANDBOX_NUMBER}" accept
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter output tcp sport "1000${SANDBOX_NUMBER}" accept
 
-    # Reject incoming connections that exceed the limits
+    # Throttle incoming connections that exceed the stream limit
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter input \
         meter active_streams '{ ip daddr . tcp dport timeout 1s limit rate over 1 bytes/second burst 0 bytes }' \
-        meter max_streams "{ ip daddr . tcp dport ct count over ${STREAMS} }" \
+        meter max_streams "{ ip daddr . tcp dport ct count over ${STREAM_LIMIT} }" \
         reject with tcp reset
 
-    # Reject outgoing connections that exceed the limits
+    # Throttle outgoing connections that exceed the transfer limit
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter output \
         meter active_transfers '{ ip saddr . tcp sport timeout 1s limit rate over 1 bytes/second burst 0 bytes }' \
-        meter max_transfers "{ ip saddr . tcp sport ct count over ${TRANSFERS} }" \
+        meter max_transfers "{ ip saddr . tcp sport ct count over ${TRANSFER_LIMIT} }" \
         reject with tcp reset
-
-    # Accept unfiltered incoming connections
-    ip netns exec "$SANDBOX_NAME" nft add rule inet filter input accept
-
-    # Accept unfiltered outgoing connections
-    ip netns exec "$SANDBOX_NAME" nft add rule inet filter output accept
 }
 
 start() {
@@ -68,7 +62,7 @@ start() {
 
     echo "$ENDPOINT" > "${SANDBOX_PATH}/home/endpoint"
 
-    sed -i "s|url = #${RC_SVCNAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
+    sed -i "s|url = #${SANDBOX_NAME}-url|url = ${ENDPOINT}|" /etc/rclone/rclone.conf
 
     healthcheck && eend 0 || (stop; eend 1)
 }
@@ -86,6 +80,5 @@ status() {
 }
 
 healthcheck() {
-    exit 0
     (wget -q --spider $(cat "${SANDBOX_PATH}/home/endpoint")) 2> /dev/null
 }
