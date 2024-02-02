@@ -20,24 +20,28 @@ setup_chroot() {
 
 setup_network() {
     DEVICE="mega${SANDBOX_NUMBER}"
+    ADDRESS="$(ip addr show dev eth0 | awk '/inet/ {print $2}')"
+    GATEWAY="$(ip route show dev eth0 | awk '/default/ {print $3}')"
 
     # Create a network namespace
     ip netns add "$SANDBOX_NAME"
 
     # Create a vlan device for the host
-    ip link add "$DEVICE" link eth0 type ipvlan mode l3s
+    ip link add "$DEVICE" link eth0 type macvlan mode bridge
     ip link set "$DEVICE" up
     ip addr add "10.0.${SANDBOX_NUMBER}.0/31" dev "$DEVICE"
     ip route add "10.0.${SANDBOX_NUMBER}.1" dev "$DEVICE"
 
     # Create devices for the namespace
-    ip link add veth link eth0 type ipvlan mode l3s
+    ip link add veth link eth0 type macvlan mode bridge
     ip link set veth netns "$SANDBOX_NAME"
     ip netns exec "$SANDBOX_NAME" ip link set veth name eth0
     ip netns exec "$SANDBOX_NAME" ip link set eth0 up
     ip netns exec "$SANDBOX_NAME" ip link set lo up
     ip netns exec "$SANDBOX_NAME" ip addr add "10.0.${SANDBOX_NUMBER}.1" dev eth0
-    ip netns exec "$SANDBOX_NAME" ip route add default dev eth0
+    ip netns exec "$SANDBOX_NAME" ip route add "10.0.${SANDBOX_NUMBER}.0/31" dev eth0
+    ip netns exec "$SANDBOX_NAME" ip addr add "$ADDRESS" dev eth0
+    ip netns exec "$SANDBOX_NAME" ip route add default via "$GATEWAY" dev eth0
 
     # Set up host policies
     nft add table inet filter
@@ -59,7 +63,9 @@ setup_network() {
     ip netns exec "$SANDBOX_NAME" nft add chain inet nat postrouting '{ type nat hook postrouting priority 100; policy accept; }'
 
     # Set up network address translation
-    nft add rule inet nat postrouting oifname eth0 ip saddr "10.0.${SANDBOX_NUMBER}.1" masquerade
+    ip netns exec "$SANDBOX_NAME" nft add chain inet nat postrouting
+    nft add rule inet nat postrouting iifname "$DEVICE" masquerade
+    ip netns exec "$SANDBOX_NAME" nft add rule inet nat postrouting oifname eth0 masquerade
 }
 
 sandbox() {
