@@ -30,7 +30,6 @@ start_pre() {
     . /etc/mega/.env
 
     # Accept service traffic
-    ip netns exec "$SANDBOX_NAME" nft add rule inet nat prerouting tcp dport "1000${SANDBOX_NUMBER}" dnat ip to "127.0.0.1"
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter input tcp dport "1000${SANDBOX_NUMBER}" accept
     ip netns exec "$SANDBOX_NAME" nft add rule inet filter output tcp sport "1000${SANDBOX_NUMBER}" accept
 
@@ -55,7 +54,7 @@ start() {
     /opt/mega-nfs/sandbox /usr/bin/mega-login "$EMAIL" "$PASSWORD"
 
     ENDPOINT=$(
-        /opt/mega-nfs/sandbox /usr/bin/mega-webdav --port="1000${SANDBOX_NUMBER}" "$DIRECTORY" \
+        /opt/mega-nfs/sandbox /usr/bin/mega-webdav --port="10000" --public "$DIRECTORY" \
         | awk '{print $NF}' \
         | sed "s/127.0.0.1/10.0.${SANDBOX_NUMBER}.1/"
     )
